@@ -98,8 +98,9 @@
     font-size: 0.85rem;
   }
 
-  table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  th, td { text-align: left; padding: 10px 14px; font-size: 0.88rem; border-bottom: 1px solid var(--border); }
+  .table-scroll { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); -webkit-overflow-scrolling: touch; }
+  table { width: 100%; min-width: 480px; border-collapse: collapse; background: var(--panel); }
+  th, td { text-align: left; padding: 10px 14px; font-size: 0.88rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
   th { color: var(--muted); font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; }
   tr:last-child td { border-bottom: none; }
   td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -118,12 +119,22 @@
     color: var(--muted);
   }
   .feed-item strong { color: var(--text); }
-  .feed-item time { font-size: 0.75rem; }
+  .feed-item time { font-size: 0.75rem; white-space: nowrap; }
 
   footer { color: var(--muted); font-size: 0.75rem; text-align: center; margin-top: 40px; }
 
   @media (max-width: 620px) {
-    form.purchase { grid-template-columns: 1fr; }
+    body { padding: 16px 12px 48px; }
+    header.header-bar { gap: 10px; }
+    header .logo { width: 36px; height: 36px; }
+    header h1 { font-size: 1.25rem; }
+    header p { font-size: 0.82rem; }
+    .cards { gap: 12px; }
+    .card { padding: 14px 16px; }
+    form.purchase { grid-template-columns: 1fr; padding: 14px 16px; }
+    .search input { max-width: none; }
+    th, td { padding: 8px 10px; font-size: 0.82rem; }
+    .feed-item { flex-direction: column; align-items: flex-start; gap: 2px; }
   }
 </style>
 </head>
@@ -151,6 +162,7 @@
         <select id="ticker" required>
           <option value="VICI">VICI Properties (VICI)</option>
           <option value="O">Realty Income (O)</option>
+          <option value="MAIN">Main Street Capital (MAIN)</option>
         </select>
       </div>
       <div>
@@ -167,18 +179,21 @@
     <div class="search">
       <input type="text" id="search-nick" placeholder="Procurar por nick..." />
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th class="rank">#</th>
-          <th>Nick</th>
-          <th class="num">VICI</th>
-          <th class="num">O</th>
-          <th class="num">Valor total</th>
-        </tr>
-      </thead>
-      <tbody id="ranking-body"></tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th class="rank">#</th>
+            <th>Nick</th>
+            <th class="num">VICI</th>
+            <th class="num">O</th>
+            <th class="num">MAIN</th>
+            <th class="num">Valor total</th>
+          </tr>
+        </thead>
+        <tbody id="ranking-body"></tbody>
+      </table>
+    </div>
   </section>
 
   <section>
@@ -200,6 +215,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const COMPANIES = {
   VICI: { name: 'VICI Properties' },
   O: { name: 'Realty Income' },
+  MAIN: { name: 'Main Street Capital' },
 };
 
 let holdings = [];
@@ -260,17 +276,22 @@ function renderCompanyCards() {
 }
 
 function renderRanking() {
+  const tickers = Object.keys(COMPANIES);
   const byNick = new Map();
   for (const h of holdings) {
     const key = h.nick;
-    if (!byNick.has(key)) byNick.set(key, { nick: h.nick, VICI: 0, O: 0 });
+    if (!byNick.has(key)) {
+      const empty = Object.fromEntries(tickers.map((t) => [t, 0]));
+      byNick.set(key, { nick: h.nick, ...empty });
+    }
     byNick.get(key)[h.ticker] += Number(h.shares);
   }
 
   const rows = [...byNick.values()].map((r) => {
-    const priceVici = priceFor('VICI');
-    const priceO = priceFor('O');
-    const value = (priceVici !== null ? r.VICI * priceVici : 0) + (priceO !== null ? r.O * priceO : 0);
+    const value = tickers.reduce((sum, t) => {
+      const price = priceFor(t);
+      return sum + (price !== null ? r[t] * price : 0);
+    }, 0);
     return { ...r, value };
   }).sort((a, b) => b.value - a.value);
 
@@ -278,15 +299,15 @@ function renderRanking() {
   const term = searchTerm.trim().toLowerCase();
   body.innerHTML = rows.map((r, i) => {
     const match = !term || r.nick.toLowerCase().includes(term);
+    const tickerCells = tickers.map((t) => `<td class="num">${r[t] ? sharesFmt.format(r[t]) : '—'}</td>`).join('');
     return `
       <tr class="${match ? '' : 'hidden'}">
         <td class="rank">${i + 1}</td>
         <td>${escapeHtml(r.nick)}</td>
-        <td class="num">${r.VICI ? sharesFmt.format(r.VICI) : '—'}</td>
-        <td class="num">${r.O ? sharesFmt.format(r.O) : '—'}</td>
+        ${tickerCells}
         <td class="num">${currencyFmt.format(r.value)}</td>
       </tr>`;
-  }).join('') || '<tr><td colspan="5" style="color:var(--muted)">Ainda não há compras registadas.</td></tr>';
+  }).join('') || `<tr><td colspan="${tickers.length + 3}" style="color:var(--muted)">Ainda não há compras registadas.</td></tr>`;
 }
 
 function renderFeed() {
