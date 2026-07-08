@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ASClub Stock counter</title>
+<link rel="icon" type="image/png" href="https://framerusercontent.com/images/tM8HHQk9OHFkyh0ioYZs2csko.png?width=64&amp;height=64" />
 <style>
   :root {
     color-scheme: dark;
@@ -27,6 +28,8 @@
   }
   .wrap { max-width: 960px; margin: 0 auto; }
   header { margin-bottom: 24px; }
+  header.header-bar { display: flex; align-items: center; gap: 14px; }
+  header .logo { width: 48px; height: 48px; object-fit: contain; flex-shrink: 0; }
   header h1 { font-size: 1.5rem; margin: 0 0 4px; }
   header p { color: var(--muted); margin: 0; font-size: 0.9rem; }
 
@@ -126,9 +129,12 @@
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1>ASClub Stock counter</h1>
-    <p>Contador partilhado de ações da comunidade — VICI Properties e Realty Income. Insere as tuas compras abaixo.</p>
+  <header class="header-bar">
+    <img class="logo" src="https://framerusercontent.com/images/tM8HHQk9OHFkyh0ioYZs2csko.png?width=200&amp;height=200" alt="ASClub" />
+    <div>
+      <h1>ASClub Stock counter</h1>
+      <p>Contador partilhado de ações da comunidade — VICI Properties e Realty Income. Insere as tuas compras abaixo.</p>
+    </div>
   </header>
 
   <div class="cards" id="company-cards"></div>
