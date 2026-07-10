@@ -56,7 +56,7 @@
     border-radius: 12px;
     padding: 18px 20px;
     display: grid;
-    grid-template-columns: 1.2fr 1fr 0.8fr auto;
+    grid-template-columns: 1.1fr 1fr 0.8fr 0.8fr auto;
     gap: 10px;
     align-items: end;
   }
@@ -144,14 +144,14 @@
     <img class="logo" src="https://framerusercontent.com/images/tM8HHQk9OHFkyh0ioYZs2csko.png?width=200&amp;height=200" alt="ASClub" />
     <div>
       <h1>ASClub Stock counter</h1>
-      <p>Contador partilhado de ações da comunidade — VICI Properties e Realty Income. Insere as tuas compras abaixo.</p>
+      <p>Contador partilhado de ações da comunidade — VICI Properties, Realty Income e Main Street Capital. Regista as tuas compras e vendas abaixo.</p>
     </div>
   </header>
 
   <div class="cards" id="company-cards"></div>
 
   <section>
-    <h2>Registar compra</h2>
+    <h2>Registar movimento</h2>
     <form class="purchase" id="purchase-form">
       <div>
         <label for="nick">Nick do Discord</label>
@@ -163,6 +163,13 @@
           <option value="VICI">VICI Properties (VICI)</option>
           <option value="O">Realty Income (O)</option>
           <option value="MAIN">Main Street Capital (MAIN)</option>
+        </select>
+      </div>
+      <div>
+        <label for="type">Tipo</label>
+        <select id="type" required>
+          <option value="compra">Compra</option>
+          <option value="venda">Venda</option>
         </select>
       </div>
       <div>
@@ -255,12 +262,20 @@ function priceFor(ticker) {
   return q && typeof q.price === 'number' ? q.price : null;
 }
 
+function signedShares(h) {
+  return h.type === 'venda' ? -Number(h.shares) : Number(h.shares);
+}
+
 function renderCompanyCards() {
   const el = document.getElementById('company-cards');
   el.innerHTML = Object.entries(COMPANIES).map(([ticker, info]) => {
     const rows = holdings.filter((h) => h.ticker === ticker);
-    const totalShares = rows.reduce((sum, h) => sum + Number(h.shares), 0);
-    const investors = new Set(rows.map((h) => h.nick.toLowerCase())).size;
+    const totalShares = rows.reduce((sum, h) => sum + signedShares(h), 0);
+    const netByNick = new Map();
+    for (const h of rows) {
+      netByNick.set(h.nick, (netByNick.get(h.nick) ?? 0) + signedShares(h));
+    }
+    const investors = [...netByNick.values()].filter((v) => v > 0.0001).length;
     const price = priceFor(ticker);
     const totalValue = price !== null ? totalShares * price : null;
     return `
@@ -284,7 +299,7 @@ function renderRanking() {
       const empty = Object.fromEntries(tickers.map((t) => [t, 0]));
       byNick.set(key, { nick: h.nick, ...empty });
     }
-    byNick.get(key)[h.ticker] += Number(h.shares);
+    byNick.get(key)[h.ticker] += signedShares(h);
   }
 
   const rows = [...byNick.values()].map((r) => {
@@ -315,7 +330,7 @@ function renderFeed() {
   const recent = holdings.slice(0, 15);
   feed.innerHTML = recent.map((h) => `
     <div class="feed-item">
-      <span><strong>${escapeHtml(h.nick)}</strong> comprou ${sharesFmt.format(Number(h.shares))} de ${escapeHtml(h.ticker)}</span>
+      <span><strong>${escapeHtml(h.nick)}</strong> ${h.type === 'venda' ? 'vendeu' : 'comprou'} ${sharesFmt.format(Number(h.shares))} de ${escapeHtml(h.ticker)}</span>
       <time>${new Date(h.created_at).toLocaleString('pt-PT')}</time>
     </div>`).join('') || '<div class="feed-item">Sem atividade ainda.</div>';
 }
@@ -342,16 +357,17 @@ form.addEventListener('submit', async (e) => {
 
   const nick = document.getElementById('nick').value.trim();
   const ticker = document.getElementById('ticker').value;
+  const type = document.getElementById('type').value;
   const shares = parseFloat(document.getElementById('shares').value);
 
-  if (!nick || !ticker || !shares || shares <= 0) {
+  if (!nick || !ticker || !type || !shares || shares <= 0) {
     formMsg.textContent = 'Preenche todos os campos com valores válidos.';
     formMsg.className = 'form-msg error';
     return;
   }
 
   submitBtn.disabled = true;
-  const { error } = await supabase.from('holdings').insert({ nick, ticker, shares });
+  const { error } = await supabase.from('holdings').insert({ nick, ticker, type, shares });
   submitBtn.disabled = false;
 
   if (error) {
@@ -360,7 +376,7 @@ form.addEventListener('submit', async (e) => {
     return;
   }
 
-  formMsg.textContent = 'Compra registada!';
+  formMsg.textContent = 'Movimento registado!';
   formMsg.className = 'form-msg ok';
   form.reset();
 });
