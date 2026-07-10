@@ -151,6 +151,24 @@
   <div class="cards" id="company-cards"></div>
 
   <section>
+    <h2>Dividendos estimados</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Empresa</th>
+            <th class="num">Anual / ação</th>
+            <th class="num">Mensal / ação</th>
+            <th class="num">Total anual</th>
+            <th class="num">Total mensal</th>
+          </tr>
+        </thead>
+        <tbody id="dividends-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
     <h2>Registar movimento</h2>
     <form class="purchase" id="purchase-form">
       <div>
@@ -262,6 +280,17 @@ function priceFor(ticker) {
   return q && typeof q.price === 'number' ? q.price : null;
 }
 
+function annualDividendFor(ticker) {
+  const q = quotes[ticker];
+  return q && typeof q.annualDividend === 'number' ? q.annualDividend : null;
+}
+
+function netSharesFor(ticker) {
+  return holdings
+    .filter((h) => h.ticker === ticker)
+    .reduce((sum, h) => sum + signedShares(h), 0);
+}
+
 function signedShares(h) {
   return h.type === 'venda' ? -Number(h.shares) : Number(h.shares);
 }
@@ -325,6 +354,47 @@ function renderRanking() {
   }).join('') || `<tr><td colspan="${tickers.length + 3}" style="color:var(--muted)">Ainda não há compras registadas.</td></tr>`;
 }
 
+function renderDividends() {
+  const tickers = Object.keys(COMPANIES);
+  const body = document.getElementById('dividends-body');
+
+  let totalAnnual = 0;
+  let totalMonthly = 0;
+  let anyKnown = false;
+
+  const rows = tickers.map((ticker) => {
+    const annualPerShare = annualDividendFor(ticker);
+    const shares = netSharesFor(ticker);
+    const monthlyPerShare = annualPerShare !== null ? annualPerShare / 12 : null;
+    const totalAnnualForTicker = annualPerShare !== null ? annualPerShare * shares : null;
+    const totalMonthlyForTicker = monthlyPerShare !== null ? monthlyPerShare * shares : null;
+    if (totalAnnualForTicker !== null) {
+      totalAnnual += totalAnnualForTicker;
+      totalMonthly += totalMonthlyForTicker;
+      anyKnown = true;
+    }
+    return `
+      <tr>
+        <td>${escapeHtml(COMPANIES[ticker].name)}</td>
+        <td class="num">${annualPerShare !== null ? currencyFmt.format(annualPerShare) : '—'}</td>
+        <td class="num">${monthlyPerShare !== null ? currencyFmt.format(monthlyPerShare) : '—'}</td>
+        <td class="num">${totalAnnualForTicker !== null ? currencyFmt.format(totalAnnualForTicker) : '—'}</td>
+        <td class="num">${totalMonthlyForTicker !== null ? currencyFmt.format(totalMonthlyForTicker) : '—'}</td>
+      </tr>`;
+  });
+
+  rows.push(`
+    <tr style="font-weight:600">
+      <td>Total (3 empresas)</td>
+      <td class="num">—</td>
+      <td class="num">—</td>
+      <td class="num">${anyKnown ? currencyFmt.format(totalAnnual) : '—'}</td>
+      <td class="num">${anyKnown ? currencyFmt.format(totalMonthly) : '—'}</td>
+    </tr>`);
+
+  body.innerHTML = rows.join('');
+}
+
 function renderFeed() {
   const feed = document.getElementById('feed');
   const recent = holdings.slice(0, 15);
@@ -337,6 +407,7 @@ function renderFeed() {
 
 function render() {
   renderCompanyCards();
+  renderDividends();
   renderRanking();
   renderFeed();
 }
